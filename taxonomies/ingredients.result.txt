@@ -2357,15 +2357,6 @@ wikidata:en: Q133948
 en:natural antioxidant
 
 < en:Apple
-en:apple extract
-de:Apfelextrakt
-es:extracto de manzana
-fi:omenauute, omenatiiviste, makeuttava omenauute
-fr:extrait de pomme, concentré de pomme
-nl:appelextract
-sv:äppelkoncentrat, äppelextrakt, sötande äppelextrakt
-
-< en:Apple
 en:apple pieces
 de:Apfelstücke
 es:Trozos de manzana
@@ -6018,6 +6009,15 @@ fr:céleri rave râpé
 
 < en:Celeriac
 fr:jus de céleri-rave concentré, jus concentré de céleri rave
+
+< en:Celery
+< en:Natural flavouring
+fr:arôme naturel de céleri
+de:natürliches Selleriearoma
+fi:luontainen selleriaromi
+hu:természetes zeller aroma
+nl:natuurlijk selderijaroma
+allergens:en: en:celery
 
 < en:Celery
 < en:Seed
@@ -41154,13 +41154,6 @@ fr:concentrés de fruits
 it:concentrati di frutta
 
 < en:Fruit
-en:fruit extract
-de:Fruchtextrakt, Frucht-Extrakt
-fi:hedelmäuute
-fr:extrait de fruit
-nl:vruchtenextract
-
-< en:Fruit
 en:fruit juice
 ca:Suc de fruita
 cs:Ovocná šťáva
@@ -42227,6 +42220,21 @@ fi:hedelmäliha
 < en:Fruit
 fr:specialité de fruits pomme poire
 
+en:fruit extract
+de:Fruchtextrakt, Frucht-Extrakt
+fi:hedelmäuute
+fr:extrait de fruit
+nl:vruchtenextract
+
+< en:Fruit extract
+en:apple extract
+de:Apfelextrakt
+es:extracto de manzana
+fi:omenauute, omenatiiviste, makeuttava omenauute
+fr:extrait de pomme, concentré de pomme
+nl:appelextract
+sv:äppelkoncentrat, äppelextrakt, sötande äppelextrakt
+
 < en:Apple
 < en:Fruit juice
 en:apple juice
@@ -42928,7 +42936,7 @@ bg:Високо-фруктозен сироп от царевица
 ca:Xarop de blat de moro alt en fructosa
 da:glukosesirup, glucosesirup
 de:Maissirup mit hohem Fruktosegehalt
-es:Jarabe de maíz de alta fructosa
+es:Jarabe de maíz de alta fructosa, JMAF
 fi:maissisiirappi, isoglukoosi, maissitärkkelyssiirappi
 fr:sirop de maïs à haute teneur en fructose, sirop de glucose-fructose de maïs
 hu:Izocukor
@@ -47862,6 +47870,11 @@ pl:Zagęszczony sok cytrynowy, koncentrat soku z cytryny
 ru:Концентрированный лимонный сок
 sv:citronkoncentrat, citronsaftkoncentrat, citronjuicekoncentrat, citronextrakt
 
+< en:Flavouring
+< en:Lemon
+en:lemon scent
+es:aroma de limon
+
 < en:Lemon
 en:lemon marmalade
 ca:melmelada de llimona
@@ -47923,11 +47936,6 @@ de:Zitronenblatt
 es:hoja limón
 fr:feuille de citron
 nl:citroenblad
-
-< en:Flavouring
-< en:Lemon
-en:lemon scent
-es:aroma de limon
 
 < en:Lemon
 < en:Purée
@@ -53878,15 +53886,6 @@ de:Natürliches Extrakt
 fi:luontainen uute
 fr:extraits naturels
 
-< en:Celery
-< en:Natural flavouring
-fr:arôme naturel de céleri
-de:natürliches Selleriearoma
-fi:luontainen selleriaromi
-hu:természetes zeller aroma
-nl:natuurlijk selderijaroma
-allergens:en: en:celery
-
 < en:Natural flavouring
 de:natürliches Kaffee-Aroma
 fi:luontainen kahviaromi
@@ -54519,6 +54518,16 @@ it:acqua minerale naturale delle Alpi vallesane
 en:Volvic natural mineral water
 de:Natürliches Mineralwasser Volvic
 fr:eau minérale naturelle volvic
+
+< en:Fruit extract
+< en:Natural orange flavouring
+en:orange extract
+de:Orangenextrakt
+es:Extracto de naranja
+fi:appelsiiniuute
+fr:extrait d'orange
+it:estratto di arancia
+nl:sinaasappelextracten
 
 < en:Flavouring
 < en:Natural pear flavouring
@@ -56427,15 +56436,6 @@ wikipedia:en: https://en.wikipedia.org/wiki/Blood_orange
 < en:Orange
 en:eating orange
 nl:eetsinaasappel
-
-< en:Orange
-en:orange extract
-de:Orangenextrakt
-es:Extracto de naranja
-fi:appelsiiniuute
-fr:extrait d'orange
-it:estratto di arancia
-nl:sinaasappelextracten
 
 < en:Orange
 en:orange marmalade
