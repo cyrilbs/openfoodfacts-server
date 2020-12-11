@@ -74467,10 +74467,10 @@ wikipedia:en:https://en.wikipedia.org/wiki/Tamarillo
 
 # filled ingredients, is compound as it contains multiple other ingredients
 
+# en:category:en:Stuffed tomatoes
 en:stuffed tomatoes
 fr:tomates farcies, tomate farcie
 nl:gevulde tomaat, gevulde tomaten
-
 
 en:stuffed poblano peppers
 
