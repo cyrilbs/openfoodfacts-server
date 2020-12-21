@@ -1,176 +1,240 @@
 #!/usr/bin/perl -w
 
 # This file is part of Product Opener.
-# 
+#
 # Product Opener
-# Copyright (C) 2011-2019 Association Open Food Facts
+# Copyright (C) 2011-2020 Association Open Food Facts
 # Contact: contact@openfoodfacts.org
 # Address: 21 rue des Iles, 94100 Saint-Maur des Fossés, France
-# 
+#
 # Product Opener is free software: you can redistribute it and/or modify
 # it under the terms of the GNU Affero General Public License as
 # published by the Free Software Foundation, either version 3 of the
 # License, or (at your option) any later version.
-# 
+#
 # This program is distributed in the hope that it will be useful,
 # but WITHOUT ANY WARRANTY; without even the implied warranty of
 # MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
 # GNU Affero General Public License for more details.
-# 
+#
 # You should have received a copy of the GNU Affero General Public License
 # along with this program.  If not, see <https://www.gnu.org/licenses/>.
 
-use CGI::Carp qw(fatalsToBrowser);
-
-use Modern::Perl '2017';
+#use Modern::Perl '2017';
 use utf8;
 
-use ProductOpener::Config qw/:all/;
-use ProductOpener::Store qw/:all/;
-use ProductOpener::Index qw/:all/;
-use ProductOpener::Display qw/:all/;
-use ProductOpener::Tags qw/:all/;
-use ProductOpener::Users qw/:all/;
-use ProductOpener::Images qw/:all/;
-use ProductOpener::Lang qw/:all/;
-use ProductOpener::Mail qw/:all/;
-use ProductOpener::Products qw/:all/;
-use ProductOpener::Food qw/:all/;
-use ProductOpener::Ingredients qw/:all/;
-use ProductOpener::Images qw/:all/;
-
-
-use CGI qw/:cgi :form escapeHTML/;
-use URI::Escape::XS;
-use Storable qw/dclone/;
+use Storable qw(lock_store lock_nstore lock_retrieve);
 use Encode;
-use JSON::PP;
-
+use MongoDB;
 use Data::Dumper;
 
+my $timeout = 60000;
+my $database = "off";
+#my $collection = "products_revs";
+my $collection = "products_revs";
 
-# Get a list of all products
+my $products_collection = MongoDB::MongoClient->new->get_database($database)->get_collection($collection);
 
-use Getopt::Long;
+my $start_dir = $ARGV[0];
 
+my %errStatus;
+my $verbose = 1;
+
+my $d = 0;
 my @products = ();
 
+# functions
 
-GetOptions ( 'products=s' => \@products);
-@products = split(/,/,join(',',@products));
+sub Log {
+  $message = shift;
+  print "$message\n" if $verbose;
+  if ($message=~/^\[(...)\]/) {
+    $errStatus{$message}++ if $1 ne "INF"
+  }
+} 
 
+sub retrieve {
+        my $file = shift @_;
+        # If the file does not exist, return undef.
+        if (! -e $file) {
+                return;
+        }
+        my $return = undef;
+        eval {$return = lock_retrieve($file);};
 
-sub find_products($$) {
-
-	my $dir = shift;
-	my $code = shift;
-
-	opendir DH, "$dir" or die "could not open $dir directory: $!\n";
-	foreach my $file (readdir(DH)) {
-		chomp($file);
-		#print "file: $file\n";
-		if ($file eq 'product.sto') {
-			push @products, $code;
-			#print "code: $code\n";
-		}
-		else {
-			$file =~ /\./ and next;
-			if (-d "$dir/$file") {
-				find_products("$dir/$file","$code$file");
-			}
-		}
-	}
-	closedir DH;
-
-	return;
+        return $return;
 }
 
+sub get_path_from_code($) {
+
+        my $code = shift;
+        my $path = "";
+
+        # Require at least 4 digits (some stores use very short internal barcodes, they are likely to be conflicting)
+        if ($code !~ /^\d{4,24}$/) {
+
+                Log("[WAR] code should be at least 4 digits maximum 24: $code");
+        }
+
+        if ($code =~ /^(...)(...)(....?)(.*)$/) {
+                $path = "$1/$2/$3/$4";
+                $path=~s/\/$//
+        } else {
+                Log("[WAR] code has not a correct format: $code")
+        }
+        return $path;
+}
+
+
+sub find_products {
+
+        my $dir = shift;
+        my $code = shift;
+
+        my $dh;
+
+        opendir $dh, "$dir" or die "could not open $dir directory: $!\n";
+        foreach my $file (sort readdir($dh)) {
+                chomp($file);
+                if ($file =~ /^(([0-9]+))\.sto/) {
+                        push @products, [$code, $1];
+                        $d++;
+                        (($d % 1000) == 1 ) and Log("[INF] identified $d revisions - $code");
+                }
+                else {
+                        $file =~ /\./ and next;
+                        if (-d "$dir/$file") {
+                                find_products("$dir/$file","$code$file");
+                        }
+                }
+                #last if $d > 100;
+        }
+        closedir $dh or die "cannot not close $dir: $!\n";
+
+        return
+}
+
+# main begins
+
+if (not defined $start_dir) {
+        Log("[ERR] Pass the root of the product directory as the first argument");
+        exit();
+}
 
 if (scalar $#products < 0) {
-	find_products("$data_root/products",'');
+        find_products($start_dir,'');
 }
-
-
-
-
 
 my $count = $#products;
 my $i = 0;
 
+my $previousChangesFile = "";
+my %changes;
+my %originalChanges;
+my $productFile;
+
 my %codes = ();
-	
-	print STDERR "$count products to update\n";
-	
-	foreach my $code (@products) {
 
-		#next if ($code ne "4072700318675");
-		
-		my $path = product_path($code);
-		
-		
-		#my $product_ref = retrieve_product($code);
-		my $product_ref = retrieve("$data_root/products/$path/product.sto") or print "not defined $data_root/products/$path/product.sto\n";
+Log("[INF] total is $count revisions to update");
 
-		if ((defined $product_ref)) {
+foreach my $code_rev_ref (@products) {
+  my ($code, $rev) = @$code_rev_ref;
 
-			foreach my $k (keys %{$product_ref}) {
-				$k =~ /\./ and print "$k\t";
-			}
+  my $path = get_path_from_code($code);
 
-			if (exists $product_ref->{"countries.20131226"}) {
-				delete $product_ref->{"countries.20131226"};
-			}
-			if (exists $product_ref->{"countries.20131227"}) {
-                                delete $product_ref->{"countries.20131227"};
-                        }
-			if (exists $product_ref->{"countries.beforescanbot"}) {
-                                delete $product_ref->{"countries.beforescanbot"};
-                        }
-			if (exists $product_ref->{"traces.tags"}) {
-                                delete $product_ref->{"traces.tags"};
-                        }
-			if (exists $product_ref->{"categories.tags"}) {
-                                delete $product_ref->{"categories.tags"};
-                        }
-                        if (exists $product_ref->{"packaging.tags"}) {
-                                delete $product_ref->{"packaging.tags"};
-                        }
-                        if (exists $product_ref->{"labels.tags"}) {
-                                delete $product_ref->{"labels.tags"};
-                        }
-                        if (exists $product_ref->{"origins.tags"}) {
-                                delete $product_ref->{"origins.tags"};
-                        }
-                        if (exists $product_ref->{"brands.tags"}) {
-                                delete $product_ref->{"brands.tags"};
-                        }
+  if ($path eq "") {
+    Log("[WAR] skipping product: $code rev: $rev");
+    next
+  }
 
+  $productFile = "$start_dir/$path/$rev.sto";
 
+  my $product_ref = retrieve($productFile);
 
-foreach my $k (keys %{$product_ref}) {
-                                $k =~ /\./ and print "$k\t";
-                        }
+  if ($product_ref) {
 
+    $changesFile = "$start_dir/$path/changes.sto";
 
-		}
-		
-		if ((defined $product_ref) and ($code ne '')) {
-			next if ((defined $product_ref->{empty}) and ($product_ref->{empty} == 1));
-			next if ((defined $product_ref->{deleted}) and ($product_ref->{deleted} eq 'on'));
-			print STDERR "updating product $code -- " . $product_ref->{code} . " \n";
-			my $return = $products_collection->save($product_ref , { safe => 1 });
-			print STDERR "return $return\n";
-			my $err = $database->last_error();
-			if (defined $err) {
-#				print STDERR Dump($err);
-			}
-			$i++;
-			$codes{$code} = 1;
-		}
-	}
+    if ($changesFile eq $previousChangesFile) {
+      #print "[INF] knowned changes file\n"
 
-print STDERR "$count products to update - $i products not empty or deleted\n";
-print STDERR "scalar keys codes : " . (scalar keys %codes) . "\n";
+    } else {
+      #print "[INF] identified a new changes file\n";
+      $originalChanges = retrieve($changesFile);
+      if ($originalChanges) {
+        $previousChangesFile = $changesFile;
+        %changes = ();
+        foreach my $change (@$originalChanges) {
+          #print "\n>>>>>>>>>>>>>>>>>>>>>>>>>>>\n";
+          #print Dumper $change;
+          #print "\n<<<<<<<<<<<< $$change{rev} <<<<<<<<<<<<<<<<<<<<<\n";
+          if ($$change{"rev"}) {
+            $k = $$change{"rev"};
+            $changes{$k} = $change
+          } else {
+            $errMsg = "[WAR] no rev in change record see $changesFile";
+            #print "$errMsg\n";
+            $errStatus{$errMsg}++
+          }
+        }
+              
+      } else {
+        Log("[WAR] $changesFile not defined");
+        $previousChangesFile = ""
+      }
+    }
+    
+    #print "\n>>>>>>>>>>>>>>>>>>>>\n";
+    #print Dumper(\%changes);
+    #print "\n<<<<<<<<<<<<<<<<<<<<<<\n";
+    next if ((defined $product_ref->{deleted}) and ($product_ref->{deleted} eq 'on'));
+
+    #Log("[INF] updating product code $code -- rev $rev -- " . $product_ref->{code});
+
+    $product_ref->{"_id"} = $code . "." . $rev;
+
+    if ($changes{$rev}{"rev"} and $product_ref->{"rev"} and $changes{$rev}{"rev"} eq $product_ref->{"rev"}) {
+      $$product_ref{"change"} = $changes{$rev};
+      #print Dumper($product_ref)
+    } else {
+      Log("[WAR] cannot match any change from changes file");
+    }
+
+    Log("[INF] updating $productFile db record (key ".$product_ref->{"_id"}."), loop $i");
+
+    # this hack works for first level hash but not nested ones
+    #foreach my $key (my @for_deleting_while_iterating =  keys $product_ref) {
+    #  if ($key=~/\./) {
+    #    Log("[WAR] renaming $key key as it contains a dot");
+    #    delete $$product_ref{$key}
+    #  }
+    #}
+
+    my $str = Dumper($product_ref);
+
+    # we replace dot by something else
+    $str=~s/'([^']+)\.([^']+)' =>/'$1_$2' =>/g;
+
+    # regexp below to eval str
+    $str=~s/\$VAR1/\%product_ref2/;
+    $str=~s/= \{/= (/;
+    $str=~s/\};\s*$/);/;
+    #print($str);
+    eval($str);
+
+    #$products_collection->update_one({"_id" => $product_ref2->{_id}}, $product_ref2, { upsert => 1 });
+    $products_collection->insert_one(\%product_ref2);
+    $i++;
+    $codes{$code} = 1
+
+  } else {
+    Log("[ERR] cannot find $productFile")
+  }
+}
+
+Log("[INF] $count products revs to update - $i products revs not empty or deleted");
+Log("[INF] scalar keys codes : " . (scalar keys %codes));
+
+print Dumper(\%errStatus);
 
 exit(0);
-
